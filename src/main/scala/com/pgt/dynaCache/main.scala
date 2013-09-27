@@ -16,6 +16,14 @@ import akka.cluster.MemberStatus
 import akka.pattern.ask
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
+import akka.io.IO
+import spray.can.Http
+import spray.can.server.Stats
+import spray.util._
+import spray.http._
+import akka.event._
+import HttpMethods._
+import MediaTypes._
 
 import com.pgt.utils.HashAlgorithm;
 
@@ -33,7 +41,7 @@ object TransformationFrontend {
         ConfigFactory.parseString("akka.cluster.roles = [frontend]")).
         withFallback(ConfigFactory.load())
 
-    val system = ActorSystem("ClusterSystem", config)
+    implicit val system = ActorSystem("ClusterSystem", config)
     val frontend = system.actorOf(Props[TransformationFrontend], name = "frontend")
 	val backend = system.actorOf(Props[TransformationBackend], name = "backend")
 	
@@ -41,6 +49,8 @@ object TransformationFrontend {
     implicit val timeout = Timeout(5 seconds)
 
 	Cluster(system) registerOnMemberUp {
+    //val resizer = DefaultResizer(lowerBound = 2, upperBound = 15)
+    //val nodeManager = system.actorOf(Props[NodeManager].withRouter(RoundRobinRouter(resizer = Some(resizer))))
     val nodeManager = system.actorOf(Props[NodeManager], name = "node-manager")
     /*for (n ← 1 to 120) {
       (frontend ? TransformationJob("hello-" + n)) onSuccess {
@@ -49,8 +59,11 @@ object TransformationFrontend {
       // wait a while until next request,
       // to avoid flooding the console with output
       Thread.sleep(1000)
+
     }
     system.shutdown()*/
+    val actSystem = ActorSystem()
+    IO(Http)(actSystem) ! Http.Bind(nodeManager, interface = "localhost", port = 8085)
 	}
 
   }
